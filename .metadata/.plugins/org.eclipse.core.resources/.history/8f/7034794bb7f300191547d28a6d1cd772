@@ -51,11 +51,14 @@ unsigned char t;
 char CodError;
 char x=1;
 char pasos=0;
-unsigned int time;
-int posicion;
+char time;
 bool reverse=0;
-int lidar;
-signed char block[4] = {0,0,0,0};
+int dato=0;
+bool q0=0;
+bool q1=0;
+bool q2=1;
+bool q3=0;
+signed char y[4] = {0,0,0,0};
 
 void main(void)
 {
@@ -159,20 +162,15 @@ void main(void)
 				  pasos=pasos+1;
 			  }
 		  }
-		  //AS1_SendChar(pasos);
-		  sonar=t/58;
-				
-		  AD1_GetValue(&lidar);
-		  posicion=pasos*4;
-		  y[0]=posicion&0x63;
-		  y[1]=((sonar>>2)&0x127)|0x128;
-		  y[2]=((sonar&0x3)|((lidar>>7)&0x31))|0x128;
-		  y[3]=(lidar&0x127)|0x128;
 		  
-		  do{
-			  CodError = AS1_SendBlock(y, 3, &i);
-			  //CodError =  AS1_SendChar(y);
-		  } while (CodError != ERR_OK);
+		  
+		  //AS1_SendChar(pasos);
+		  
+		//reverse=~reverse;
+		
+	  //AD1_GetValue(&dato);
+		//Bit5_SetVal();
+		//Bit5_PutVal(FALSE);
 	  	  f=0;
 	  }
   }

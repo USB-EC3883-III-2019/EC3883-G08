@@ -31,7 +31,7 @@
 #include "Cpu.h"
 #include "Events.h"
 extern char f;
-extern unsigned int t;
+extern unsigned char t;
 
 /* User includes (#include below this line is not maintained by Processor Expert) */
 void TI1_OnInterrupt(void)
