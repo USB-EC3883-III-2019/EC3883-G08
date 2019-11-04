@@ -6,7 +6,7 @@
 **     Component   : Capture
 **     Version     : Component 02.223, Driver 01.30, CPU db: 3.00.067
 **     Compiler    : CodeWarrior HCS08 C Compiler
-**     Date/Time   : 2019-10-20, 19:04, # CodeGen: 25
+**     Date/Time   : 2019-11-02, 23:47, # CodeGen: 63
 **     Abstract    :
 **         This component "Capture" simply implements the capture function
 **         of timer. The counter counts the same way as in free run mode. On
@@ -17,43 +17,43 @@
 **             Timer capture encapsulation : Capture
 **
 **         Timer
-**             Timer                   : TPM1
-**             Counter shared          : No
+**             Timer                   : TPM3
+**             Counter shared          : Yes
 **
 **         High speed mode
-**             Prescaler               : divide-by-4
+**             Prescaler               : divide-by-1
 **           Maximal time for capture register
-**             Xtal ticks              : 575
-**             microseconds            : 17544
-**             milliseconds            : 18
-**             seconds (real)          : 0.017543859649
-**             Hz                      : 57
+**             Xtal ticks              : 16000000
+**             microseconds            : 4000000
+**             milliseconds            : 4000
+**             seconds                 : 4
+**             seconds (real)          : 4.0
 **           One tick of timer is
-**             nanoseconds             : 250
+**             microseconds            : 61.035156
 **
 **         Initialization:
 **              Timer                  : Enabled
 **              Events                 : Enabled
 **
 **         Timer registers
-**              Capture                : TPM1C0V   [$0046]
-**              Counter                : TPM1CNT   [$0041]
-**              Mode                   : TPM1SC    [$0040]
-**              Run                    : TPM1SC    [$0040]
-**              Prescaler              : TPM1SC    [$0040]
+**              Capture                : TPM3C0V   [$0066]
+**              Counter                : TPM3CNT   [$0061]
+**              Mode                   : TPM3SC    [$0060]
+**              Run                    : TPM3SC    [$0060]
+**              Prescaler              : TPM3SC    [$0060]
 **
 **         Used input pin              : 
 **             ----------------------------------------------------
 **                Number (on package)  |    Name
 **             ----------------------------------------------------
-**                       62            |  PTA0_KBI1P0_TPM1CH0_ADP0_ACMP1PLUS
+**                       34            |  PTC0_TPM3CH0
 **             ----------------------------------------------------
 **
-**         Port name                   : PTA
+**         Port name                   : PTC
 **         Bit number (in port)        : 0
 **         Bit mask of the port        : $0001
 **
-**         Signal edge/level           : rising
+**         Signal edge/level           : both
 **         Priority                    : 
 **         Pull option                 : off
 **
@@ -118,6 +118,7 @@
 #pragma CODE_SEG Cap1_CODE
 
 static bool EnUser;                    /* Enable/Disable device by user */
+volatile word Cap1_CntrState;          /* Content of counter */
 
 
 /*
@@ -136,12 +137,11 @@ static bool EnUser;                    /* Enable/Disable device by user */
 */
 byte Cap1_Enable(void)
 {
+  Cap1_CntrState = TPM3CNT;            /* Load content of counter register to variable CntrState */
   if (!EnUser) {                       /* Is the device disabled by user? */
     EnUser = TRUE;                     /* If yes then set the flag "device enabled" */
-    /* TPM1C0SC: CH0F=0,CH0IE=1,MS0B=0,MS0A=0,ELS0B=0,ELS0A=1,??=0,??=0 */
-    setReg8(TPM1C0SC, 0x44U);          /* Enable both interrupt and capture function */ 
-    /* TPM1SC: CLKSB=0,CLKSA=1 */
-    clrSetReg8Bits(TPM1SC, 0x10U, 0x08U); /* Run counter */ 
+    /* TPM3C0SC: CH0F=0,CH0IE=1,MS0B=0,MS0A=0,ELS0B=1,ELS0A=1,??=0,??=0 */
+    setReg8(TPM3C0SC, 0x4CU);          /* Enable both interrupt and capture function */ 
   }
   return ERR_OK;                       /* OK */
 }
@@ -164,10 +164,8 @@ byte Cap1_Disable(void)
 {
   if (EnUser) {                        /* Is the device enabled by user? */
     EnUser = FALSE;                    /* If yes then set the flag "device disabled" */
-    /* TPM1SC: CLKSB=0,CLKSA=0 */
-    clrReg8Bits(TPM1SC, 0x18U);        /* Stop counter */ 
-    /* TPM1C0SC: CH0F=0,CH0IE=0,MS0B=0,MS0A=0,ELS0B=0,ELS0A=0,??=0,??=0 */
-    setReg8(TPM1C0SC, 0x00U);          /* Disable capture function */ 
+    /* TPM3C0SC: CH0F=0,CH0IE=0,MS0B=0,MS0A=0,ELS0B=0,ELS0A=0,??=0,??=0 */
+    setReg8(TPM3C0SC, 0x00U);          /* Disable capture function */ 
   }
   return ERR_OK;                       /* OK */
 }
@@ -198,7 +196,7 @@ byte Cap1_Reset(word *Value)
 **     Description :
 **         This method gets the last value captured by enabled timer.
 **         Note: one tick of timer is
-**               250 ns in high speed mode
+**               61.035156 us in high speed mode
 **     Parameters  :
 **         NAME            - DESCRIPTION
 **       * Value           - A pointer to the content of the
@@ -249,21 +247,20 @@ bool Cap1_GetPinValue(void)
 */
 void Cap1_Init(void)
 {
-  /* TPM1SC: TOF=0,TOIE=0,CPWMS=0,CLKSB=0,CLKSA=0,PS2=0,PS1=0,PS0=0 */
-  setReg8(TPM1SC, 0x00U);              /* Stop HW */ 
-  /* TPM1MOD: BIT15=0,BIT14=0,BIT13=0,BIT12=0,BIT11=0,BIT10=0,BIT9=0,BIT8=0,BIT7=0,BIT6=0,BIT5=0,BIT4=0,BIT3=0,BIT2=0,BIT1=0,BIT0=0 */
-  setReg16(TPM1MOD, 0x00U);            /* Disable modulo register */ 
-  /* TPM1CNTH: BIT15=0,BIT14=0,BIT13=0,BIT12=0,BIT11=0,BIT10=0,BIT9=0,BIT8=0 */
-  setReg8(TPM1CNTH, 0x00U);            /* Reset counter */ 
-  /* TPM1C0V: BIT15=0,BIT14=0,BIT13=0,BIT12=0,BIT11=0,BIT10=0,BIT9=0,BIT8=0,BIT7=0,BIT6=0,BIT5=0,BIT4=0,BIT3=0,BIT2=0,BIT1=0,BIT0=0 */
-  setReg16(TPM1C0V, 0x00U);            /* Clear capture register */ 
+  /* TPM3SC: TOF=0,TOIE=0,CPWMS=0,CLKSB=0,CLKSA=0,PS2=0,PS1=0,PS0=0 */
+  setReg8(TPM3SC, 0x00U);              /* Stop HW */ 
+  /* TPM3MOD: BIT15=0,BIT14=0,BIT13=0,BIT12=0,BIT11=0,BIT10=0,BIT9=0,BIT8=0,BIT7=0,BIT6=0,BIT5=0,BIT4=0,BIT3=0,BIT2=0,BIT1=0,BIT0=0 */
+  setReg16(TPM3MOD, 0x00U);            /* Disable modulo register */ 
+  /* TPM3CNTH: BIT15=0,BIT14=0,BIT13=0,BIT12=0,BIT11=0,BIT10=0,BIT9=0,BIT8=0 */
+  setReg8(TPM3CNTH, 0x00U);            /* Reset counter */ 
+  /* TPM3C0V: BIT15=0,BIT14=0,BIT13=0,BIT12=0,BIT11=0,BIT10=0,BIT9=0,BIT8=0,BIT7=0,BIT6=0,BIT5=0,BIT4=0,BIT3=0,BIT2=0,BIT1=0,BIT0=0 */
+  setReg16(TPM3C0V, 0x00U);            /* Clear capture register */ 
+  Cap1_CntrState = 0x00U;              /* Clear variable */
   EnUser = TRUE;                       /* Enable device */
-  /* TPM1SC: PS2=0,PS1=1,PS0=0 */
-  clrSetReg8Bits(TPM1SC, 0x05U, 0x02U); /* Set prescaler register */ 
-  /* TPM1C0SC: CH0F=0,CH0IE=1,MS0B=0,MS0A=0,ELS0B=0,ELS0A=1,??=0,??=0 */
-  setReg8(TPM1C0SC, 0x44U);            /* Enable both interrupt and capture function */ 
-  /* TPM1SC: CLKSB=0,CLKSA=1 */
-  clrSetReg8Bits(TPM1SC, 0x10U, 0x08U); /* Run counter */ 
+  /* TPM3SC: PS2=0,PS1=0,PS0=0 */
+  clrReg8Bits(TPM3SC, 0x07U);          /* Set prescaler register */ 
+  /* TPM3C0SC: CH0F=0,CH0IE=1,MS0B=0,MS0A=0,ELS0B=1,ELS0A=1,??=0,??=0 */
+  setReg8(TPM3C0SC, 0x4CU);            /* Enable both interrupt and capture function */ 
 }
 
 #pragma CODE_SEG __NEAR_SEG NON_BANKED
@@ -280,9 +277,9 @@ void Cap1_Init(void)
 */
 ISR(Cap1_Interrupt)
 {
-  (void)TPM1C0SC;                      /* Dummy read to reset interrupt request flag */
-  /* TPM1C0SC: CH0F=0 */
-  clrReg8Bits(TPM1C0SC, 0x80U);        /* Reset interrupt request flag */ 
+  (void)TPM3C0SC;                      /* Dummy read to reset interrupt request flag */
+  /* TPM3C0SC: CH0F=0 */
+  clrReg8Bits(TPM3C0SC, 0x80U);        /* Reset interrupt request flag */ 
   Cap1_OnCapture();                    /* Invoke user event */
 }
 

@@ -6,7 +6,7 @@
 **     Component   : PWM
 **     Version     : Component 02.240, Driver 01.28, CPU db: 3.00.067
 **     Compiler    : CodeWarrior HCS08 C Compiler
-**     Date/Time   : 2019-10-20, 18:12, # CodeGen: 23
+**     Date/Time   : 2019-10-28, 13:28, # CodeGen: 58
 **     Abstract    :
 **         This component implements a pulse-width modulation generator
 **         that generates signal with variable duty and fixed cycle. 
@@ -39,16 +39,17 @@
 **              Timer                  : Enabled
 **              Event                  : Enabled
 **         High speed mode
-**             Prescaler               : divide-by-2
-**             Clock                   : 7471104 Hz
+**             Prescaler               : divide-by-4
+**             Clock                   : 3735552 Hz
 **           Initial value of            period     pulse width
-**             Xtal ticks              : 164        164
-**             microseconds            : 5000       4990
-**             milliseconds            : 5          5
-**             seconds (real)          : 0.005000064248 0.004990025571
+**             Xtal ticks              : 60000      59920
+**             microseconds            : 15000      14980
+**             milliseconds            : 15         15
+**             seconds (real)          : 0.014999925045 0.014980115389
 **
 **     Contents    :
 **         Enable     - byte PWM1_Enable(void);
+**         Disable    - byte PWM1_Disable(void);
 **         SetRatio16 - byte PWM1_SetRatio16(word Ratio);
 **         SetDutyUS  - byte PWM1_SetDutyUS(word Time);
 **         SetDutyMS  - byte PWM1_SetDutyMS(word Time);
@@ -109,8 +110,8 @@
 #include "PE_Timer.h"
 #include "Cpu.h"
 
-#define PWM1_PERIOD_VALUE              0x91EBU /* Initial period value in ticks of the timer in high speed mode */
-#define PWM1_PERIOD_VALUE_HIGH         0x91EBU /* Period value in ticks of the timer in high speed mode */
+#define PWM1_PERIOD_VALUE              0xDAE0U /* Initial period value in ticks of the timer in high speed mode */
+#define PWM1_PERIOD_VALUE_HIGH         0xDAE0U /* Period value in ticks of the timer in high speed mode */
 
 #pragma CODE_SEG PWM1_CODE
 
@@ -122,6 +123,23 @@ byte PWM1_Enable(void);
 **         This method enables the component - it starts the signal
 **         generation. Events may be generated (<DisableEvent>
 **         /<EnableEvent>).
+**     Parameters  : None
+**     Returns     :
+**         ---             - Error code, possible codes:
+**                           ERR_OK - OK
+**                           ERR_SPEED - This device does not work in
+**                           the active speed mode
+** ===================================================================
+*/
+
+byte PWM1_Disable(void);
+/*
+** ===================================================================
+**     Method      :  PWM1_Disable (component PWM)
+**     Description :
+**         This method disables the component - it stops the signal
+**         generation and events calling. When the timer is disabled,
+**         it is possible to call <ClrValue> and <SetValue> methods.
 **     Parameters  : None
 **     Returns     :
 **         ---             - Error code, possible codes:
@@ -166,7 +184,7 @@ byte PWM1_SetDutyUS(word Time);
 **     Parameters  :
 **         NAME            - DESCRIPTION
 **         Time            - Duty to set [in microseconds]
-**                      (0 to 5000 us in high speed mode)
+**                      (0 to 15000 us in high speed mode)
 **     Returns     :
 **         ---             - Error code, possible codes:
 **                           ERR_OK - OK
@@ -188,7 +206,7 @@ byte PWM1_SetDutyMS(word Time);
 **     Parameters  :
 **         NAME            - DESCRIPTION
 **         Time            - Duty to set [in milliseconds]
-**                      (0 to 5 ms in high speed mode)
+**                      (0 to 15 ms in high speed mode)
 **     Returns     :
 **         ---             - Error code, possible codes:
 **                           ERR_OK - OK

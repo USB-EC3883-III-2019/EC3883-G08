@@ -7,7 +7,7 @@
 **     Version     : Component 01.003, Driver 01.40, CPU db: 3.00.067
 **     Datasheet   : MC9S08QE128RM Rev. 2 6/2007
 **     Compiler    : CodeWarrior HCS08 C Compiler
-**     Date/Time   : 2019-10-20, 17:49, # CodeGen: 20
+**     Date/Time   : 2019-10-28, 13:38, # CodeGen: 60
 **     Abstract    :
 **         This component "MC9S08QE128_80" contains initialization 
 **         of the CPU and provides basic methods and events for 
@@ -92,9 +92,10 @@
 
 #define CPU_INSTR_CLK_HZ            0x00E40000UL /* Initial value of the instruction clock frequency in Hz */
 
+#define CPU_EXT_CLK_HZ              0x003D0900UL /* Value of the main clock frequency (crystal or external clock) in Hz */
 #define CPU_INT_CLK_HZ              0x8000UL /* Value of the internal oscillator clock frequency in Hz */
 
-#define CPU_TICK_NS                 0x7736U /* CPU tick is a unit derived from the frequency of external clock source. If no external clock is enabled or available it is derived from the value of internal clock source. The value of this constant represents period of the clock source in ns. */
+#define CPU_TICK_NS                 0xFAU /* CPU tick is a unit derived from the frequency of external clock source. If no external clock is enabled or available it is derived from the value of internal clock source. The value of this constant represents period of the clock source in ns. */
 
 #define CPU_CORE_HCS08                 /* Specification of the core type of the selected cpu */
 #define CPU_DERIVATIVE_MC9S08QE128     /* Name of the selected cpu derivative */
@@ -107,6 +108,7 @@ extern volatile byte CCR_lock;         /* Nesting level of critical regions */
 
 /* Shadow variables */
 extern byte Shadow_PTD;                /* Shadow variable for I/O components */
+extern byte Shadow_PTE;                /* Shadow variable for I/O components */
 
 #pragma CODE_SEG __NEAR_SEG NON_BANKED
 void _EntryPoint(void);
@@ -118,6 +120,17 @@ void _EntryPoint(void);
 **         Initializes the whole system like timing and so on. At the end 
 **         of this function, the C startup is invoked to initialize stack,
 **         memory areas and so on.
+**         This method is internal. It is used by Processor Expert only.
+** ===================================================================
+*/
+
+__interrupt void Cpu_SWIInterrupt(void);
+/*
+** ===================================================================
+**     Method      :  Cpu_SWIInterrupt (component MC9S08QE128_80)
+**
+**     Description :
+**         This ISR services the SWI interrupt.
 **         This method is internal. It is used by Processor Expert only.
 ** ===================================================================
 */

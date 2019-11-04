@@ -6,7 +6,7 @@
 **     Component   : Capture
 **     Version     : Component 02.223, Driver 01.30, CPU db: 3.00.067
 **     Compiler    : CodeWarrior HCS08 C Compiler
-**     Date/Time   : 2019-10-20, 19:04, # CodeGen: 25
+**     Date/Time   : 2019-11-02, 23:47, # CodeGen: 63
 **     Abstract    :
 **         This component "Capture" simply implements the capture function
 **         of timer. The counter counts the same way as in free run mode. On
@@ -17,43 +17,43 @@
 **             Timer capture encapsulation : Capture
 **
 **         Timer
-**             Timer                   : TPM1
-**             Counter shared          : No
+**             Timer                   : TPM3
+**             Counter shared          : Yes
 **
 **         High speed mode
-**             Prescaler               : divide-by-4
+**             Prescaler               : divide-by-1
 **           Maximal time for capture register
-**             Xtal ticks              : 575
-**             microseconds            : 17544
-**             milliseconds            : 18
-**             seconds (real)          : 0.017543859649
-**             Hz                      : 57
+**             Xtal ticks              : 16000000
+**             microseconds            : 4000000
+**             milliseconds            : 4000
+**             seconds                 : 4
+**             seconds (real)          : 4.0
 **           One tick of timer is
-**             nanoseconds             : 250
+**             microseconds            : 61.035156
 **
 **         Initialization:
 **              Timer                  : Enabled
 **              Events                 : Enabled
 **
 **         Timer registers
-**              Capture                : TPM1C0V   [$0046]
-**              Counter                : TPM1CNT   [$0041]
-**              Mode                   : TPM1SC    [$0040]
-**              Run                    : TPM1SC    [$0040]
-**              Prescaler              : TPM1SC    [$0040]
+**              Capture                : TPM3C0V   [$0066]
+**              Counter                : TPM3CNT   [$0061]
+**              Mode                   : TPM3SC    [$0060]
+**              Run                    : TPM3SC    [$0060]
+**              Prescaler              : TPM3SC    [$0060]
 **
 **         Used input pin              : 
 **             ----------------------------------------------------
 **                Number (on package)  |    Name
 **             ----------------------------------------------------
-**                       62            |  PTA0_KBI1P0_TPM1CH0_ADP0_ACMP1PLUS
+**                       34            |  PTC0_TPM3CH0
 **             ----------------------------------------------------
 **
-**         Port name                   : PTA
+**         Port name                   : PTC
 **         Bit number (in port)        : 0
 **         Bit mask of the port        : $0001
 **
-**         Signal edge/level           : rising
+**         Signal edge/level           : both
 **         Priority                    : 
 **         Pull option                 : off
 **
@@ -125,11 +125,11 @@
 #include "Cpu.h"
 
 /* PUBLISHED CONSTANTS */
-#define Cap1_PRESCALER_VALUE           0x04U /* Prescaler value of the timer in high speed mode */
-#define Cap1_COUNTER_INPUT_CLOCK_HZ    0x00390000LU /* Initial counter input clock frequency [Hz] */
+#define Cap1_PRESCALER_VALUE           0x01U /* Prescaler value of the timer in high speed mode */
+#define Cap1_COUNTER_INPUT_CLOCK_HZ    0x4000LU /* Initial counter input clock frequency [Hz] */
 #define Cap1_TIMER_INPUT_CLOCK         0x00E40000LU /* Deprecated, Initial timer input clock frequency [Hz] */
-#define Cap1_PRESCALER_VALUE_HIGH      0x04U /* Prescaler value of the timer in high speed mode */
-#define Cap1_COUNTER_INPUT_CLOCK_HZ_HIGH 0x00390000LU /* Counter input clock frequency in high speed mode [Hz] */
+#define Cap1_PRESCALER_VALUE_HIGH      0x01U /* Prescaler value of the timer in high speed mode */
+#define Cap1_COUNTER_INPUT_CLOCK_HZ_HIGH 0x4000LU /* Counter input clock frequency in high speed mode [Hz] */
 #define Cap1_TIMER_INPUT_CLOCK_HIGH    0x00E40000LU /* Deprecated, Timer input clock frequency in high speed mode[Hz] */
 
 #ifndef __BWUserType_Cap1_TCapturedValue
@@ -138,6 +138,8 @@
 #endif
 
 #pragma CODE_SEG Cap1_CODE
+
+extern volatile word Cap1_CntrState;   /* Content of counter */
 
 
 byte Cap1_Enable(void);
@@ -173,7 +175,7 @@ byte Cap1_Disable(void);
 */
 
 #define Cap1_Reset() \
-  (TPM1CNTH = 0U , (byte)ERR_OK)
+  (Cap1_CntrState = TPM3CNT , (byte)ERR_OK)
 /*
 ** ===================================================================
 **     Method      :  Cap1_Reset (component Capture)
@@ -191,7 +193,9 @@ byte Cap1_Disable(void);
 
 #define Cap1_GetCaptureValue(Value) \
   /*lint -save  -e926 -e927 -e928 -e929 Disable MISRA rule (11.4) checking. */\
-  (*(Cap1_TCapturedValue*)(Value) = TPM1C0V , (byte)ERR_OK) \
+  (((*(Cap1_TCapturedValue*)(Value) = TPM3C0V), \
+  (*(Cap1_TCapturedValue*)(Value) -= Cap1_CntrState)), \
+  ERR_OK) \
   /*lint -restore Enable MISRA rule (11.4) checking. */
 /*
 ** ===================================================================
@@ -199,7 +203,7 @@ byte Cap1_Disable(void);
 **     Description :
 **         This method gets the last value captured by enabled timer.
 **         Note: one tick of timer is
-**               250 ns in high speed mode
+**               61.035156 us in high speed mode
 **     Parameters  :
 **         NAME            - DESCRIPTION
 **       * Value           - A pointer to the content of the
@@ -212,7 +216,7 @@ byte Cap1_Disable(void);
 ** ===================================================================
 */
 
-#define Cap1_GetPinValue() ((PTAD & 0x01U) ? TRUE : FALSE)
+#define Cap1_GetPinValue() ((PTCD & 0x01U) ? TRUE : FALSE)
 /*
 ** ===================================================================
 **     Method      :  Cap1_GetPinValue (component Capture)

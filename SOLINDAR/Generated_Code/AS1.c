@@ -6,7 +6,7 @@
 **     Component   : AsynchroSerial
 **     Version     : Component 02.611, Driver 01.33, CPU db: 3.00.067
 **     Compiler    : CodeWarrior HCS08 C Compiler
-**     Date/Time   : 2019-10-20, 16:23, # CodeGen: 19
+**     Date/Time   : 2019-10-28, 13:28, # CodeGen: 58
 **     Abstract    :
 **         This component "AsynchroSerial" implements an asynchronous serial
 **         communication. The component supports different settings of
@@ -24,7 +24,7 @@
 **             Parity                  : none
 **             Breaks                  : Disabled
 **             Input buffer size       : 0
-**             Output buffer size      : 0
+**             Output buffer size      : 4
 **
 **         Registers
 **             Input buffer            : SCI1D     [$0027]
@@ -34,7 +34,13 @@
 **             Baud setting reg.       : SCI1BD    [$0020]
 **             Special register        : SCI1S1    [$0024]
 **
+**         Input interrupt
+**             Vector name             : Vsci1rx
+**             Priority                : 
 **
+**         Output interrupt
+**             Vector name             : Vsci1tx
+**             Priority                : 
 **
 **         Used pins:
 **         ----------------------------------------------------------
@@ -47,8 +53,11 @@
 **
 **
 **     Contents    :
-**         RecvChar        - byte AS1_RecvChar(AS1_TComData *Chr);
+**         Enable          - byte AS1_Enable(void);
+**         Disable         - byte AS1_Disable(void);
 **         SendChar        - byte AS1_SendChar(AS1_TComData Chr);
+**         SendBlock       - byte AS1_SendBlock(AS1_TComData *Ptr, word Size, word *Snd);
+**         ClearTxBuf      - byte AS1_ClearTxBuf(void);
 **         GetCharsInRxBuf - word AS1_GetCharsInRxBuf(void);
 **         GetCharsInTxBuf - word AS1_GetCharsInTxBuf(void);
 **
@@ -105,56 +114,87 @@
 #pragma MESSAGE DISABLE C4002 /* WARNING C4002: Result not used is ignored */
 
 #include "AS1.h"
+#include "Events.h"
 
 #pragma CODE_SEG AS1_CODE
 
 
+/* SerFlag bits */
+#define OVERRUN_ERR      0x01U         /* Overrun error flag bit   */
+#define COMMON_ERR       0x02U         /* Common error of RX       */
+#define CHAR_IN_RX       0x04U         /* Char is in RX buffer     */
+#define RUNINT_FROM_TX   0x08U         /* Interrupt is in progress */
+#define FULL_TX          0x10U         /* Full transmit buffer     */
+
+static volatile byte SerFlag;          /* Flags for serial communication */
+                                       /* Bit 0 - Overrun error */
+                                       /* Bit 1 - Common error of RX */
+                                       /* Bit 2 - Char in RX buffer */
+                                       /* Bit 3 - Interrupt is in progress */
+                                       /* Bit 4 - Full TX buffer */
+static bool EnUser;                    /* Enable/Disable SCI */
+byte AS1_OutLen;                       /* Length of the output buffer content */
+static byte OutIndxR;                  /* Index for reading from output buffer */
+static byte OutIndxW;                  /* Index for writing to output buffer */
+static AS1_TComData OutBuffer[AS1_OUT_BUF_SIZE]; /* Output buffer for SCI commmunication */
+static bool OnFreeTxBuf_semaphore;     /* Disable the false calling of the OnFreeTxBuf event */
 
 /*
 ** ===================================================================
-**     Method      :  AS1_RecvChar (component AsynchroSerial)
+**     Method      :  AS1_Enable (component AsynchroSerial)
 **     Description :
-**         If any data is received, this method returns one character,
-**         otherwise it returns an error code (it does not wait for
-**         data). This method is enabled only if the receiver property
-**         is enabled.
-**         [Note:] Because the preferred method to handle error and
-**         break exception in the interrupt mode is to use events
-**         <OnError> and <OnBreak> the return value ERR_RXEMPTY has
-**         higher priority than other error codes. As a consequence the
-**         information about an exception in interrupt mode is returned
-**         only if there is a valid character ready to be read.
-**     Parameters  :
-**         NAME            - DESCRIPTION
-**       * Chr             - Pointer to a received character
+**         Enables the component - it starts the send and receive
+**         functions. Events may be generated
+**         ("DisableEvent"/"EnableEvent").
+**     Parameters  : None
 **     Returns     :
 **         ---             - Error code, possible codes:
 **                           ERR_OK - OK
 **                           ERR_SPEED - This device does not work in
 **                           the active speed mode
-**                           ERR_RXEMPTY - No data in receiver
-**                           ERR_BREAK - Break character is detected
-**                           (only when the <Interrupt service> property
-**                           is disabled and the <Break signal> property
-**                           is enabled)
-**                           ERR_COMMON - common error occurred (the
-**                           <GetError> method can be used for error
-**                           specification)
 ** ===================================================================
 */
-byte AS1_RecvChar(AS1_TComData *Chr)
+byte AS1_Enable(void)
 {
-  byte Result = ERR_OK;                /* Prepare default error code */
-  byte StatReg = SCI1S1;               /* Read status register */
-
-  if (StatReg & (SCI1S1_OR_MASK|SCI1S1_NF_MASK|SCI1S1_FE_MASK|SCI1S1_PF_MASK)) { /* Is any error set? */
-    Result = ERR_COMMON;               /* If yes then set common error value */
-  } else if ((StatReg & SCI1S1_RDRF_MASK) == 0U) { /* Is the reciver empty and no error is set? */
-    return ERR_RXEMPTY;                /* If yes then error */
-  } else {                             /* Intentionally left empty due to compatibility with MISRA rule 60 */
+  if (!EnUser) {                       /* Is the device disabled by user? */
+    EnUser = TRUE;                     /* If yes then set the flag "device enabled" */
+  SCI1BDH = 0x00U;                     /* Set high divisor register (enable device) */
+  SCI1BDL = 0x08U;                     /* Set low divisor register (enable device) */
+      /* SCI1C3: ORIE=1,NEIE=1,FEIE=1,PEIE=1 */
+    SCI1C3 |= 0x0FU;                   /* Enable error interrupts */
+    SCI1C2 |= (SCI1C2_TE_MASK | SCI1C2_RE_MASK | SCI1C2_RIE_MASK); /*  Enable transmitter, Enable receiver, Enable receiver interrupt */
+    if (AS1_OutLen) {                  /* Is number of bytes in the transmit buffer greater then 0? */
+      SCI1C2_TIE = 0x01U;              /* Enable transmit interrupt */
+    }
   }
-  *Chr = SCI1D;                        /* Read data from the receiver */
-  return Result;                       /* Return error code */
+  return ERR_OK;                       /* OK */
+}
+
+/*
+** ===================================================================
+**     Method      :  AS1_Disable (component AsynchroSerial)
+**     Description :
+**         Disables the component - it stops the send and receive
+**         functions. No events will be generated.
+**     Parameters  : None
+**     Returns     :
+**         ---             - Error code, possible codes:
+**                           ERR_OK - OK
+**                           ERR_SPEED - This device does not work in
+**                           the active speed mode
+** ===================================================================
+*/
+byte AS1_Disable(void)
+{
+  if (EnUser) {                        /* Is the device enabled by user? */
+    EnUser = FALSE;                    /* If yes then set the flag "device disabled" */
+    /* SCI1C3: ORIE=0,NEIE=0,FEIE=0,PEIE=0 */
+    SCI1C3 &= (byte)(~(byte)0x0FU);    /* Disable error interrupts */
+    SCI1C2 &= ((byte)(~(byte)SCI1C2_RE_MASK) & (byte)(~(byte)SCI1C2_TE_MASK) & (byte)(~(byte)SCI1C2_TIE_MASK) & (byte)(~(byte)SCI1C2_RIE_MASK)); /*  Disable receiver, Disable transmitter, Disable transmit interrupt, Disable receiver interrupt */
+    SCI1BDH = 0x00U;                   /* Set high divisor register to zero (disable device) */
+    SCI1BDL = 0x00U;                   /* Set low divisor register to zero (disable device) */
+  }
+  return ERR_OK;                       /* OK */
 }
 
 /*
@@ -181,10 +221,99 @@ byte AS1_RecvChar(AS1_TComData *Chr)
 */
 byte AS1_SendChar(AS1_TComData Chr)
 {
-  if (SCI1S1_TDRE == 0U) {             /* Is the transmitter full? */
+  if (AS1_OutLen == AS1_OUT_BUF_SIZE) { /* Is number of chars in buffer the same as a size of the transmit buffer */
     return ERR_TXFULL;                 /* If yes then error */
   }
-  SCI1D = (byte)Chr;                   /* Store char to the transmitter register */
+  EnterCritical();                     /* Save the PS register */
+  AS1_OutLen++;                        /* Increase number of bytes in the transmit buffer */
+  OutBuffer[OutIndxW] = Chr;           /* Store char to buffer */
+  OutIndxW = (byte)((OutIndxW + 1U) & (AS1_OUT_BUF_SIZE - 1U)); /* Update index */
+  if (EnUser) {                        /* Is the device enabled by user? */
+    if (SCI1C2_TIE == 0U) {            /* Is the transmit interrupt already enabled? */
+      SCI1C2_TIE = 0x01U;              /* If no than enable transmit interrupt */
+    }
+  }
+  ExitCritical();                      /* Restore the PS register */
+  return ERR_OK;                       /* OK */
+}
+
+/*
+** ===================================================================
+**     Method      :  AS1_SendBlock (component AsynchroSerial)
+**     Description :
+**         Sends a block of characters to the channel.
+**         This method is available only if non-zero length of the
+**         output buffer is defined and the transmitter property is
+**         enabled.
+**     Parameters  :
+**         NAME            - DESCRIPTION
+**       * Ptr             - Pointer to the block of data to send
+**         Size            - Size of the block
+**       * Snd             - Pointer to number of data that are sent
+**                           (moved to buffer)
+**     Returns     :
+**         ---             - Error code, possible codes:
+**                           ERR_OK - OK
+**                           ERR_SPEED - This device does not work in
+**                           the active speed mode
+**                           ERR_TXFULL - It was not possible to send
+**                           requested number of bytes
+** ===================================================================
+*/
+byte AS1_SendBlock(const AS1_TComData * Ptr, word Size, word *Snd)
+{
+  word count = 0x00U;                  /* Number of sent chars */
+  bool local_OnFreeTxBuf_semaphore = OnFreeTxBuf_semaphore; /* Local copy of OnFreeTxBuf_semaphore state */
+
+  while((count < Size) && (AS1_OutLen < AS1_OUT_BUF_SIZE)) { /* While there is some char desired to send left and output buffer is not full do */
+    EnterCritical();                   /* Save the PS register */
+    OnFreeTxBuf_semaphore = TRUE;      /* Set the OnFreeTxBuf_semaphore to block OnFreeTxBuf calling */
+    AS1_OutLen++;                      /* Increase number of bytes in the transmit buffer */
+    OutBuffer[OutIndxW] = *Ptr++;      /* Store char to buffer */
+    OutIndxW = (byte)((OutIndxW + 1U) & (AS1_OUT_BUF_SIZE - 1U)); /* Update index */
+    count++;                           /* Increase the count of sent data */
+    if ((count == Size) || (AS1_OutLen == AS1_OUT_BUF_SIZE)) { /* Is the last desired char put into buffer or the buffer is full? */
+      if (!local_OnFreeTxBuf_semaphore) { /* Was the OnFreeTxBuf_semaphore clear before enter the method? */
+        OnFreeTxBuf_semaphore = FALSE; /* If yes then clear the OnFreeTxBuf_semaphore */
+      }
+    }
+    if (EnUser) {                      /* Is the device enabled by user? */
+      if (SCI1C2_TIE == 0U) {          /* Is the transmit interrupt already enabled? */
+        SCI1C2_TIE = 0x01U;            /* If no than enable transmit interrupt */
+      }
+    }
+    ExitCritical();                    /* Restore the PS register */
+  }
+  *Snd = count;                        /* Return the number of sent chars */
+  if (count != Size) {                 /* Is the number of sent chars less then desired number of chars */
+    return ERR_TXFULL;                 /* If yes then error */
+  }
+  return ERR_OK;                       /* OK */
+}
+
+/*
+** ===================================================================
+**     Method      :  AS1_ClearTxBuf (component AsynchroSerial)
+**     Description :
+**         Clears the transmit buffer.
+**         This method is available only if non-zero length of the
+**         output buffer is defined and the receiver property is
+**         enabled.
+**     Parameters  : None
+**     Returns     :
+**         ---             - Error code, possible codes:
+**                           ERR_OK - OK
+**                           ERR_SPEED - This device does not work in
+**                           the active speed mode
+** ===================================================================
+*/
+byte AS1_ClearTxBuf(void)
+{
+  EnterCritical();                     /* Save the PS register */
+  AS1_OutLen = 0x00U;                  /* Set number of chars in the transmit buffer to 0 */
+  OutIndxR = 0x00U;                    /* Reset read index to the transmit buffer */
+  OutIndxW = 0x00U;                    /* Reset read index to the transmit buffer */
+  ExitCritical();                      /* Restore the PS register */
   return ERR_OK;                       /* OK */
 }
 
@@ -200,11 +329,10 @@ byte AS1_SendChar(AS1_TComData Chr)
 **                           buffer.
 ** ===================================================================
 */
-/*
 word AS1_GetCharsInRxBuf(void)
-
-**      This method is implemented as a macro. See header module. **
-*/
+{
+  return ((SerFlag & CHAR_IN_RX) ? (word)1U : (word)0U); /* Return number of chars in the receive buffer */
+}
 
 /*
 ** ===================================================================
@@ -227,6 +355,103 @@ word AS1_GetCharsInTxBuf(void)
 
 /*
 ** ===================================================================
+**     Method      :  AS1_InterruptRx (component AsynchroSerial)
+**
+**     Description :
+**         The method services the receive interrupt of the selected 
+**         peripheral(s) and eventually invokes the component's event(s).
+**         This method is internal. It is used by Processor Expert only.
+** ===================================================================
+*/
+#define ON_ERROR        0x01U
+#define ON_FULL_RX      0x02U
+#define ON_RX_CHAR      0x04U
+#define ON_IDLE_CHAR    0x08U
+#define ON_RX_CHAR_EXT  0x10U
+#pragma CODE_SEG __NEAR_SEG NON_BANKED
+ISR(AS1_InterruptRx)
+{
+  byte OnFlags = 0x00U;                /* Temporary variable for flags */
+  byte StatReg = SCI1S1;               /* Temporary variable for status flags */
+  AS1_TComData Data = SCI1D;           /* Read data from the receiver into temporary variable for data */
+
+  OnFlags |= ON_RX_CHAR;               /* Set flag "OnRxChar" */
+  if (OnFlags & ON_ERROR) {            /* Is OnError flag set? */
+    AS1_OnError();                     /* If yes then invoke user event */
+  }
+  else {
+    if (OnFlags & ON_RX_CHAR) {        /* Is OnRxChar flag set? */
+      AS1_OnRxChar();                  /* If yes then invoke user event */
+    }
+  }
+}
+
+#pragma CODE_SEG AS1_CODE
+/*
+** ===================================================================
+**     Method      :  AS1_InterruptTx (component AsynchroSerial)
+**
+**     Description :
+**         The method services the transmit interrupt of the selected 
+**         peripheral(s) and eventually invokes the component's event(s).
+**         This method is internal. It is used by Processor Expert only.
+** ===================================================================
+*/
+#define ON_FREE_TX  0x01U
+#define ON_TX_CHAR  0x02U
+#pragma CODE_SEG __NEAR_SEG NON_BANKED
+ISR(AS1_InterruptTx)
+{
+  byte OnFlags = 0x00U;                /* Temporary variable for flags */
+
+  if (SerFlag & RUNINT_FROM_TX) {      /* Is flag "running int from TX" set? */
+    OnFlags |= ON_TX_CHAR;             /* Set flag "OnTxChar" */
+  }
+  SerFlag &= (byte)(~(byte)RUNINT_FROM_TX); /* Reset flag "running int from TX" */
+  if (AS1_OutLen) {                    /* Is number of bytes in the transmit buffer greater than 0? */
+    AS1_OutLen--;                      /* Decrease number of chars in the transmit buffer */
+    SerFlag |= RUNINT_FROM_TX;         /* Set flag "running int from TX" */
+    (void)SCI1S1;                      /* Reset interrupt request flag */
+    SCI1D = OutBuffer[OutIndxR];       /* Store char to transmitter register */
+    OutIndxR = (byte)((OutIndxR + 1U) & (AS1_OUT_BUF_SIZE - 1U)); /* Update index */
+  } else {
+    if (!OnFreeTxBuf_semaphore) {
+      OnFlags |= ON_FREE_TX;           /* Set flag "OnFreeTxBuf" */
+    }
+    SCI1C2_TIE = 0x00U;                /* Disable transmit interrupt */
+  }
+  if (OnFlags & ON_TX_CHAR) {          /* Is flag "OnTxChar" set? */
+    AS1_OnTxChar();                    /* If yes then invoke user event */
+  }
+  if (OnFlags & ON_FREE_TX) {          /* Is flag "OnFreeTxBuf" set? */
+    AS1_OnFreeTxBuf();                 /* If yes then invoke user event */
+  }
+}
+
+#pragma CODE_SEG AS1_CODE
+/*
+** ===================================================================
+**     Method      :  AS1_InterruptError (component AsynchroSerial)
+**
+**     Description :
+**         The method services the error interrupt of the selected 
+**         peripheral(s) and eventually invokes the component's event(s).
+**         This method is internal. It is used by Processor Expert only.
+** ===================================================================
+*/
+#pragma CODE_SEG __NEAR_SEG NON_BANKED
+ISR(AS1_InterruptError)
+{
+  byte StatReg = getReg(SCI1S1);
+
+  (void)SCI1D;                         /* Dummy read of data register - clear error bits */
+  SerFlag |= COMMON_ERR;               /* If yes then set an internal flag */
+  AS1_OnError();                       /* Invoke user event */
+}
+
+#pragma CODE_SEG AS1_CODE
+/*
+** ===================================================================
 **     Method      :  AS1_Init (component AsynchroSerial)
 **
 **     Description :
@@ -238,6 +463,12 @@ word AS1_GetCharsInTxBuf(void)
 */
 void AS1_Init(void)
 {
+  SerFlag = 0x00U;                     /* Reset flags */
+  OnFreeTxBuf_semaphore = FALSE;       /* Clear the OnFreeTxBuf_semaphore */
+  EnUser = TRUE;                       /* Enable device */
+  AS1_OutLen = 0x00U;                  /* No char in the transmit buffer */
+  OutIndxR = 0x00U;                    /* Reset read index to the transmit buffer */
+  OutIndxW = 0x00U;                    /* Reset write index to the transmit buffer */
   /* SCI1C1: LOOPS=0,SCISWAI=0,RSRC=0,M=0,WAKE=0,ILT=0,PE=0,PT=0 */
   setReg8(SCI1C1, 0x00U);              /* Configure the SCI */ 
   /* SCI1C3: R8=0,T8=0,TXDIR=0,TXINV=0,ORIE=0,NEIE=0,FEIE=0,PEIE=0 */
@@ -248,8 +479,9 @@ void AS1_Init(void)
   setReg8(SCI1S2, 0x00U);               
   SCI1BDH = 0x00U;                     /* Set high divisor register (enable device) */
   SCI1BDL = 0x08U;                     /* Set low divisor register (enable device) */
-  SCI1C2_TE = 0x01U;                    /* Enable transmitter */
-  SCI1C2_RE = 0x01U;                    /* Enable receiver */
+      /* SCI1C3: ORIE=1,NEIE=1,FEIE=1,PEIE=1 */
+  SCI1C3 |= 0x0FU;                     /* Enable error interrupts */
+  SCI1C2 |= (SCI1C2_TE_MASK | SCI1C2_RE_MASK | SCI1C2_RIE_MASK); /*  Enable transmitter, Enable receiver, Enable receiver interrupt */
 }
 
 

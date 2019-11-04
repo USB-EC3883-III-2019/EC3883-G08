@@ -2,7 +2,7 @@
 # Automatically-generated file. Do not edit!
 ################################################################################
 
-#Progress monitor hint: 16
+#Progress monitor hint: 23
 first : all
 -include ../makefile.init
 
@@ -18,6 +18,7 @@ RM := "$(GNU_Make_Install_DirEnv)/rm" -f
 -include Project_Settings/Startup_Code/subdir.mk
 -include Project_Settings/Linker_Files/subdir.mk
 -include Generated_Code/subdir.mk
+-include .metadata/.plugins/org.eclipse.cdt.make.core/subdir.mk
 -include objects.mk
 
 ifneq ($(MAKECMDGOALS),clean)
@@ -91,14 +92,14 @@ endif
 # Tool invocations
 SOLINDAR.abs: $(OBJS) $(USER_OBJS) ../Project_Settings/Linker_Files/ProcessorExpert.prm
 	@echo 'Building target: $@'
-	@echo 'Executing target #17 $@'
+	@echo 'Executing target #24 $@'
 	@echo 'Invoking: S08 Linker'
 	"$(HC08ToolsEnv)/linker" -ArgFile"SOLINDAR.args" -O"SOLINDAR.abs"
 	@echo 'Finished building target: $@'
 	@echo ' '
 
 SOLINDAR.abs.s19: $(BBL_SRCS) $(EXECUTABLES)
-	@echo 'Executing target #18 $@'
+	@echo 'Executing target #25 $@'
 	@echo 'Invoking: S08 Burner'
 	"$(HC08ToolsEnv)/burner" -ArgFile"SOLINDAR.abs.args" -f="$<" -env"ABS_FILE=$(strip $(EXECUTABLES_OS_FORMAT))"
 	@echo 'Finished building: $@'
@@ -106,7 +107,7 @@ SOLINDAR.abs.s19: $(BBL_SRCS) $(EXECUTABLES)
 
 # Other Targets
 clean:
-	-$(RM) $(S_DEPS_QUOTED) "./*/*.obj" "./*/*/*.obj"  $(CPP_DEPS_QUOTED) $(CC_DEPS_QUOTED) $(S_UPPER_DEPS_QUOTED) $(CXX_DEPS_QUOTED) $(ASM_DEPS_QUOTED) $(BURNER_OUTPUT_OUTPUTS_QUOTED) $(ASM_UPPER_DEPS_QUOTED) $(C_UPPER_DEPS_QUOTED) $(C++_DEPS_QUOTED) $(EXECUTABLES_QUOTED) "./*/*.d" "./*/*/*.d"  $(ProjDirPath)/FLASH/SOLINDAR.abs $(ProjDirPath)/FLASH/SOLINDAR.abs.args $(ProjDirPath)/FLASH/SOLINDAR.abs.s19 $(ProjDirPath)/FLASH/SOLINDAR.args $(ProjDirPath)/FLASH/SOLINDAR.map
+	-$(RM) $(S_DEPS_QUOTED) "./*/*/*/*.obj" "./*/*.obj" "./*/*/*.obj"  "./*/*/*/*.d"  $(CC_DEPS_QUOTED) $(S_UPPER_DEPS_QUOTED) $(CXX_DEPS_QUOTED) $(ASM_DEPS_QUOTED) $(BURNER_OUTPUT_OUTPUTS_QUOTED) $(ASM_UPPER_DEPS_QUOTED) $(C_UPPER_DEPS_QUOTED) $(C++_DEPS_QUOTED) $(EXECUTABLES_QUOTED) "./*/*/*/*.d" "./*/*.d" "./*/*/*.d"  $(ProjDirPath)/FLASH/SOLINDAR.abs $(ProjDirPath)/FLASH/SOLINDAR.abs.args $(ProjDirPath)/FLASH/SOLINDAR.abs.s19 $(ProjDirPath)/FLASH/SOLINDAR.args $(ProjDirPath)/FLASH/SOLINDAR.map
 	-@echo ' '
 
 .PHONY: all clean dependents explicit-dependencies warning-messages

@@ -6,7 +6,7 @@
 **     Component   : AsynchroSerial
 **     Version     : Component 02.611, Driver 01.33, CPU db: 3.00.067
 **     Compiler    : CodeWarrior HCS08 C Compiler
-**     Date/Time   : 2019-10-20, 16:23, # CodeGen: 19
+**     Date/Time   : 2019-10-28, 13:28, # CodeGen: 58
 **     Abstract    :
 **         This component "AsynchroSerial" implements an asynchronous serial
 **         communication. The component supports different settings of
@@ -24,7 +24,7 @@
 **             Parity                  : none
 **             Breaks                  : Disabled
 **             Input buffer size       : 0
-**             Output buffer size      : 0
+**             Output buffer size      : 4
 **
 **         Registers
 **             Input buffer            : SCI1D     [$0027]
@@ -34,7 +34,13 @@
 **             Baud setting reg.       : SCI1BD    [$0020]
 **             Special register        : SCI1S1    [$0024]
 **
+**         Input interrupt
+**             Vector name             : Vsci1rx
+**             Priority                : 
 **
+**         Output interrupt
+**             Vector name             : Vsci1tx
+**             Priority                : 
 **
 **         Used pins:
 **         ----------------------------------------------------------
@@ -47,8 +53,11 @@
 **
 **
 **     Contents    :
-**         RecvChar        - byte AS1_RecvChar(AS1_TComData *Chr);
+**         Enable          - byte AS1_Enable(void);
+**         Disable         - byte AS1_Disable(void);
 **         SendChar        - byte AS1_SendChar(AS1_TComData Chr);
+**         SendBlock       - byte AS1_SendBlock(AS1_TComData *Ptr, word Size, word *Snd);
+**         ClearTxBuf      - byte AS1_ClearTxBuf(void);
 **         GetCharsInRxBuf - word AS1_GetCharsInRxBuf(void);
 **         GetCharsInTxBuf - word AS1_GetCharsInTxBuf(void);
 **
@@ -136,39 +145,40 @@
   typedef byte AS1_TComData ;          /* User type for communication. Size of this type depends on the communication data width. */
 #endif
 
+#define AS1_OUT_BUF_SIZE 0x04U         /* Output buffer size */
 
+extern byte AS1_OutLen;                /* Length of the output buffer content */
 
-byte AS1_RecvChar(AS1_TComData *Chr);
+byte AS1_Enable(void);
 /*
 ** ===================================================================
-**     Method      :  AS1_RecvChar (component AsynchroSerial)
+**     Method      :  AS1_Enable (component AsynchroSerial)
 **     Description :
-**         If any data is received, this method returns one character,
-**         otherwise it returns an error code (it does not wait for
-**         data). This method is enabled only if the receiver property
-**         is enabled.
-**         [Note:] Because the preferred method to handle error and
-**         break exception in the interrupt mode is to use events
-**         <OnError> and <OnBreak> the return value ERR_RXEMPTY has
-**         higher priority than other error codes. As a consequence the
-**         information about an exception in interrupt mode is returned
-**         only if there is a valid character ready to be read.
-**     Parameters  :
-**         NAME            - DESCRIPTION
-**       * Chr             - Pointer to a received character
+**         Enables the component - it starts the send and receive
+**         functions. Events may be generated
+**         ("DisableEvent"/"EnableEvent").
+**     Parameters  : None
 **     Returns     :
 **         ---             - Error code, possible codes:
 **                           ERR_OK - OK
 **                           ERR_SPEED - This device does not work in
 **                           the active speed mode
-**                           ERR_RXEMPTY - No data in receiver
-**                           ERR_BREAK - Break character is detected
-**                           (only when the <Interrupt service> property
-**                           is disabled and the <Break signal> property
-**                           is enabled)
-**                           ERR_COMMON - common error occurred (the
-**                           <GetError> method can be used for error
-**                           specification)
+** ===================================================================
+*/
+
+byte AS1_Disable(void);
+/*
+** ===================================================================
+**     Method      :  AS1_Disable (component AsynchroSerial)
+**     Description :
+**         Disables the component - it stops the send and receive
+**         functions. No events will be generated.
+**     Parameters  : None
+**     Returns     :
+**         ---             - Error code, possible codes:
+**                           ERR_OK - OK
+**                           ERR_SPEED - This device does not work in
+**                           the active speed mode
 ** ===================================================================
 */
 
@@ -196,8 +206,50 @@ byte AS1_SendChar(AS1_TComData Chr);
 ** ===================================================================
 */
 
-#define AS1_GetCharsInRxBuf() \
-((word) SCI1S1_RDRF)                   /* Return number of chars in receive buffer */
+byte AS1_SendBlock(const AS1_TComData * Ptr,word Size,word *Snd);
+/*
+** ===================================================================
+**     Method      :  AS1_SendBlock (component AsynchroSerial)
+**     Description :
+**         Sends a block of characters to the channel.
+**         This method is available only if non-zero length of the
+**         output buffer is defined and the transmitter property is
+**         enabled.
+**     Parameters  :
+**         NAME            - DESCRIPTION
+**       * Ptr             - Pointer to the block of data to send
+**         Size            - Size of the block
+**       * Snd             - Pointer to number of data that are sent
+**                           (moved to buffer)
+**     Returns     :
+**         ---             - Error code, possible codes:
+**                           ERR_OK - OK
+**                           ERR_SPEED - This device does not work in
+**                           the active speed mode
+**                           ERR_TXFULL - It was not possible to send
+**                           requested number of bytes
+** ===================================================================
+*/
+
+byte AS1_ClearTxBuf(void);
+/*
+** ===================================================================
+**     Method      :  AS1_ClearTxBuf (component AsynchroSerial)
+**     Description :
+**         Clears the transmit buffer.
+**         This method is available only if non-zero length of the
+**         output buffer is defined and the receiver property is
+**         enabled.
+**     Parameters  : None
+**     Returns     :
+**         ---             - Error code, possible codes:
+**                           ERR_OK - OK
+**                           ERR_SPEED - This device does not work in
+**                           the active speed mode
+** ===================================================================
+*/
+
+word AS1_GetCharsInRxBuf(void);
 /*
 ** ===================================================================
 **     Method      :  AS1_GetCharsInRxBuf (component AsynchroSerial)
@@ -212,7 +264,7 @@ byte AS1_SendChar(AS1_TComData Chr);
 */
 
 #define AS1_GetCharsInTxBuf() \
-(SCI1S1_TDRE ? (word)0U : (word)1U)    /* Return number of chars in the transmitter buffer */
+((word) AS1_OutLen)                    /* Return number of chars in the transmitter buffer */
 /*
 ** ===================================================================
 **     Method      :  AS1_GetCharsInTxBuf (component AsynchroSerial)
@@ -226,6 +278,49 @@ byte AS1_SendChar(AS1_TComData Chr);
 **                           buffer.
 ** ===================================================================
 */
+
+#pragma CODE_SEG __NEAR_SEG NON_BANKED
+__interrupt void AS1_InterruptRx(void);
+#pragma CODE_SEG AS1_CODE
+/*
+** ===================================================================
+**     Method      :  AS1_InterruptRx (component AsynchroSerial)
+**
+**     Description :
+**         The method services the receive interrupt of the selected 
+**         peripheral(s) and eventually invokes the component's event(s).
+**         This method is internal. It is used by Processor Expert only.
+** ===================================================================
+*/
+
+#pragma CODE_SEG __NEAR_SEG NON_BANKED
+__interrupt void AS1_InterruptTx(void);
+#pragma CODE_SEG AS1_CODE
+/*
+** ===================================================================
+**     Method      :  AS1_InterruptTx (component AsynchroSerial)
+**
+**     Description :
+**         The method services the transmit interrupt of the selected 
+**         peripheral(s) and eventually invokes the component's event(s).
+**         This method is internal. It is used by Processor Expert only.
+** ===================================================================
+*/
+
+#pragma CODE_SEG __NEAR_SEG NON_BANKED
+__interrupt void AS1_InterruptError(void);
+#pragma CODE_SEG AS1_CODE
+/*
+** ===================================================================
+**     Method      :  AS1_InterruptError (component AsynchroSerial)
+**
+**     Description :
+**         The method services the error interrupt of the selected 
+**         peripheral(s) and eventually invokes the component's event(s).
+**         This method is internal. It is used by Processor Expert only.
+** ===================================================================
+*/
+
 
 void AS1_Init(void);
 /*

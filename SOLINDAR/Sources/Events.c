@@ -31,12 +31,15 @@
 #include "Cpu.h"
 #include "Events.h"
 extern char f;
+extern char h;
 extern unsigned int t;
+extern char filtro;
 
 /* User includes (#include below this line is not maintained by Processor Expert) */
 void TI1_OnInterrupt(void)
-{f=1;
+{h=1;
 	}
+
 
 /*
 ** ===================================================================
@@ -58,12 +61,141 @@ void AD1_OnEnd(void)
 }
 
 void Cap1_OnCapture(void){
-	if(!Cap1_GetPinValue())
-		{Cap1_Reset();}
-	else Cap1_GetCaptureValue(&t);
+	if(Cap1_GetPinValue()){
+		Cap1_Reset();
+	}
+	else{
+		Cap1_GetCaptureValue(&t);
 	
+	}
+
 }
+/*
+** ===================================================================
+**     Event       :  AS1_OnError (module Events)
+**
+**     Component   :  AS1 [AsynchroSerial]
+**     Description :
+**         This event is called when a channel error (not the error
+**         returned by a given method) occurs. The errors can be read
+**         using <GetError> method.
+**         The event is available only when the <Interrupt
+**         service/event> property is enabled.
+**     Parameters  : None
+**     Returns     : Nothing
+** ===================================================================
+*/
+void  AS1_OnError(void)
+{
+  /* Write your code here ... */
+}
+
+/*
+** ===================================================================
+**     Event       :  AS1_OnRxChar (module Events)
+**
+**     Component   :  AS1 [AsynchroSerial]
+**     Description :
+**         This event is called after a correct character is received.
+**         The event is available only when the <Interrupt
+**         service/event> property is enabled and either the <Receiver>
+**         property is enabled or the <SCI output mode> property (if
+**         supported) is set to Single-wire mode.
+**     Parameters  : None
+**     Returns     : Nothing
+** ===================================================================
+*/
+void  AS1_OnRxChar(void)
+{
+  /* Write your code here ... */
+}
+
+/*
+** ===================================================================
+**     Event       :  AS1_OnTxChar (module Events)
+**
+**     Component   :  AS1 [AsynchroSerial]
+**     Description :
+**         This event is called after a character is transmitted.
+**     Parameters  : None
+**     Returns     : Nothing
+** ===================================================================
+*/
+void  AS1_OnTxChar(void)
+{
+  /* Write your code here ... */
+}
+
+/*
+** ===================================================================
+**     Event       :  AS1_OnFreeTxBuf (module Events)
+**
+**     Component   :  AS1 [AsynchroSerial]
+**     Description :
+**         This event is called after the last character in output
+**         buffer is transmitted.
+**     Parameters  : None
+**     Returns     : Nothing
+** ===================================================================
+*/
+void  AS1_OnFreeTxBuf(void)
+{
+  /* Write your code here ... */
+}
+
+/*
+** ===================================================================
+**     Event       :  TI2_OnInterrupt (module Events)
+**
+**     Component   :  TI2 [TimerInt]
+**     Description :
+**         When a timer interrupt occurs this event is called (only
+**         when the component is enabled - <Enable> and the events are
+**         enabled - <EnableEvent>). This event is enabled only if a
+**         <interrupt service/event> is enabled.
+**     Parameters  : None
+**     Returns     : Nothing
+** ===================================================================
+*/
+void TI2_OnInterrupt(void)
+{
+  f=1;/* Write your code here ... */
+
+}
+
+void TI3_OnInterrupt(void){
+	TI3_Disable();
+	KB1_Enable();
+}
+
+void KB1_OnInterrupt(void){
+	filtro=!filtro;
+	TI3_Enable();
+	KB1_Disable();
+	Bit6_NegVal();
+}
+
+
+
+/*
+** ===================================================================
+**     Event       :  Cpu_OnSwINT (module Events)
+**
+**     Component   :  Cpu [MC9S08QE128_80]
+**     Description :
+**         This event is called when the SWI interrupt had occurred.
+**     Parameters  : None
+**     Returns     : Nothing
+** ===================================================================
+*/
+void Cpu_OnSwINT(void)
+{
+  /* Write your code here ... */
+}
+
 /* END Events */
+
+
 
 /*!
 ** @}

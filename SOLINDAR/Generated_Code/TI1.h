@@ -6,7 +6,7 @@
 **     Component   : TimerInt
 **     Version     : Component 02.161, Driver 01.23, CPU db: 3.00.067
 **     Compiler    : CodeWarrior HCS08 C Compiler
-**     Date/Time   : 2019-10-20, 17:49, # CodeGen: 20
+**     Date/Time   : 2019-11-03, 18:34, # CodeGen: 65
 **     Abstract    :
 **         This component "TimerInt" implements a periodic interrupt.
 **         When the component and its events are enabled, the "OnInterrupt"
@@ -21,14 +21,13 @@
 **
 **         High speed mode
 **             Prescaler               : divide-by-1
-**             Clock                   : 328 Hz
+**             Clock                   : 1024 Hz
 **           Initial period/frequency
-**             Xtal ticks              : 25500
-**             microseconds            : 778198
-**             milliseconds            : 778
-**             seconds                 : 1
-**             seconds (real)          : 0.778198242188
-**             Hz                      : 1
+**             Xtal ticks              : 996094
+**             microseconds            : 249023
+**             milliseconds            : 249
+**             seconds (real)          : 0.2490234375
+**             Hz                      : 4
 **
 **         Runtime setting             : none
 **
@@ -47,7 +46,8 @@
 **
 **         Flip-flop registers
 **     Contents    :
-**         No public methods
+**         Enable  - byte TI1_Enable(void);
+**         Disable - byte TI1_Disable(void);
 **
 **     Copyright : 1997 - 2014 Freescale Semiconductor, Inc. 
 **     All Rights Reserved.
@@ -108,6 +108,38 @@
 #include "IO_Map.h"
 #include "Cpu.h"
 #pragma CODE_SEG TI1_CODE
+
+byte TI1_Enable(void);
+/*
+** ===================================================================
+**     Method      :  TI1_Enable (component TimerInt)
+**     Description :
+**         This method enables the component - it starts the timer.
+**         Events may be generated (<DisableEvent>/<EnableEvent>).
+**     Parameters  : None
+**     Returns     :
+**         ---             - Error code, possible codes:
+**                           ERR_OK - OK
+**                           ERR_SPEED - This device does not work in
+**                           the active speed mode
+** ===================================================================
+*/
+
+byte TI1_Disable(void);
+/*
+** ===================================================================
+**     Method      :  TI1_Disable (component TimerInt)
+**     Description :
+**         This method disables the component - it stops the timer. No
+**         events will be generated.
+**     Parameters  : None
+**     Returns     :
+**         ---             - Error code, possible codes:
+**                           ERR_OK - OK
+**                           ERR_SPEED - This device does not work in
+**                           the active speed mode
+** ===================================================================
+*/
 
 #pragma CODE_SEG __NEAR_SEG NON_BANKED
 __interrupt void TI1_Interrupt(void);
