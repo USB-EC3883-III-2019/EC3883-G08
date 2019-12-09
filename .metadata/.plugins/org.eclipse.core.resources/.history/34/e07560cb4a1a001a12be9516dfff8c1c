@@ -1,0 +1,302 @@
+/* ###################################################################
+**     Filename    : main.c
+**     Project     : Proyecto2
+**     Processor   : MC9S08QE128CLK
+**     Version     : Driver 01.12
+**     Compiler    : CodeWarrior HCS08 C Compiler
+**     Date/Time   : 2019-11-11, 09:33, # CodeGen: 0
+**     Abstract    :
+**         Main module.
+**         This module contains user's application code.
+**     Settings    :
+**     Contents    :
+**         No public methods
+**
+** ###################################################################*/
+/*!
+** @file main.c
+** @version 01.12
+** @brief
+**         Main module.
+**         This module contains user's application code.
+*/         
+/*!
+**  @addtogroup main_module main module documentation
+**  @{
+*/         
+/* MODULE main */
+
+
+/* Including needed modules to compile this module/procedure */
+#include "Cpu.h"
+#include "Events.h"
+#include "AS1.h"
+#include "AD1.h"
+#include "KB1.h"
+#include "PWM1.h"
+#include "TI1.h"
+#include "AS2.h"
+#include "Byte1.h"
+/* Include shared modules, which are used for whole project */
+#include "PE_Types.h"
+#include "PE_Error.h"
+#include "PE_Const.h"
+#include "IO_Map.h"
+
+/* User includes (#include below this line is not maintained by Processor Expert) */
+char f=0;
+char bufMaster=0;
+char bufEsclavo=0;
+char i;
+char mensaje;
+char CodError;
+char pasos=0;
+char zona=0;
+char zona_p=1;
+char posicion=0;
+char reverse=0;
+unsigned char blockserial[4] = {0,0,0,0};
+unsigned char blockinfrarrojo[4]={0,0,0,0};
+unsigned char tramaserial[4] = {0,0,0,0};
+unsigned char tramainfrarrojo[4]= {0,0,0,0};
+char secuencia[8]={0b00110100,0b00110110,0b00110010,0b00111010,0b00111000,0b00111001,0b00110001,0b00110101};//secuencia pasos motor	
+char z1=0;
+char z2=0;
+char z3=0;
+char z4=0;
+char zona_master;
+char pasososcilacion = 0;
+
+void mover_zona(){
+	  //mueve el motor al cuadrante (zona) solicitado
+  char pasos=63; 	// pasos totales de barrido de la torre
+  char div=5;		// cantidad de cuadrantes
+  
+  char objetivo=(pasos/div)*(zona-1);
+		
+  if((zona_p!=zona)&(zona>=1 & zona<=6)){
+	  if(posicion>objetivo){
+		  posicion--;
+	  }
+	  if(posicion<objetivo){
+		  posicion++;
+	  }
+	  if(posicion==objetivo){
+		  zona_p=zona;
+	  }
+  }
+  Byte1_PutVal(secuencia[posicion%8]);	     
+}
+
+/*void enviarmensaje(mensaje){
+	do{
+		CodError=AS1_SendChar(mensaje);
+	  			  //CodError =  AS1_SendChar(t);
+	} while (CodError != ERR_OK);
+ }*/
+
+void oscilar(){//Funcion que al alcanzar la zona deseada oscila dentro de ella para asegurar la llegada del mensaje
+	
+	if(pasososcilacion==11){//al cumplir el numero de pasos que lleva recorrer los 45 grados se regresa
+		pasososcilacion=0;
+		reverse=!reverse;
+	}
+	if (reverse==0){
+		posicion++;
+	}
+	else{
+		posicion--;
+	}
+	pasososcilacion++;
+	Byte1_PutVal(secuencia[posicion%8]);
+}
+
+void enviar_infrarrojo(/*char mensaje,char z1,char z2, char z3, char z4*/) {
+	unsigned int ptr;
+	tramainfrarrojo[0]=(mensaje>>4)|0x80;
+	tramainfrarrojo[1]=(mensaje&0xF);
+	tramainfrarrojo[2]=((z4<<3)|z3);
+	tramainfrarrojo[3]=((z2<<3)|z1);
+	
+	do{
+		CodError=AS2_SendBlock(tramainfrarrojo,4,&ptr); 
+	} while (CodError!=ERR_OK);
+}
+
+void enviar_serial(/*char mensaje, int z1, int z2, int z3, int z4*/){
+	unsigned int ptr;
+	tramaserial[0]=(mensaje>>4)|0x80;
+	tramaserial[1]=(mensaje&0xF);
+	tramaserial[2]=((z4<<3)|z3);
+	tramaserial[3]=((z2<<3)|z1);
+	do{
+		CodError=AS1_SendBlock(tramaserial,4,&ptr);
+		//CodError=AS1_SendChar(mensaje);
+	} while (CodError != ERR_OK);
+}
+
+void recibir_infrarrojo(){  
+	unsigned int ptr=0;
+	//unsigned char blockinfrarrojo[4]={0,0,0,0};
+	do{
+		CodError=AS2_RecvBlock(blockinfrarrojo,4,&ptr);
+	} while (CodError!=ERR_OK);
+	
+	if(blockinfrarrojo[0]>= 0x80 && blockinfrarrojo[1]<=0xF && blockinfrarrojo[2]<=0x36 && blockinfrarrrojo[3]<=0x36){
+		mensaje= ( blockinfrarrojo[0]<<4 ) | ( blockinfrarrojo[1] & 0xF ) ; 	// 8 BITS DE MENSAJE
+		z1= ( blockinfrarrojo[3] & 0x7 );					// zona 1
+		z2= ( blockinfrarrojo[3] & 0x38)>>3;				// zona 2
+		z3= ( blockinfrarrojo[2] & 0x7);					// zona 3
+		z4= ( blockinfrarrojo[2] & 0x38)>>3;				// zona 4
+		ptr=0;
+	}
+	AS2_ClearRxBuf();
+	bufEsclavo=0;
+ }
+
+void recibir_serial(){  
+	unsigned int ptr=0;
+	//unsigned char blockserial[4] ={0,0,0,0};
+	do{
+		CodError=AS1_RecvBlock(blockserial,4,&ptr);
+	} while (CodError != ERR_OK);
+	
+	if(blockserial[0]>=0x80 && block[1]>=0x1 && blockserial[1]<0x6F && blockserial[2]<=0x36 && blockserial[3]<=0x36){
+		zona_master=( blockserial[1] & 0x70) >> 4;		// en el segundo byte está una posicion adicional que hay que enviar	
+		mensaje= (( blockserial[0]&0xF)<<4 ) | ( block[1] & 0xF ) ; 	// 8 BITS DE MENSAJE
+		z1= ( blockserial[3] & 0x7 );					// zona 1
+		z2= ( blockserial[3] & 0x38)>>3;				// zona 2
+		z3= ( blockserial[2] & 0x7);					// zona 3
+		z4= ( blockserial[2] & 0x38)>>3;				// zona 4
+	  }
+	AS1_ClearRxBuf();
+	  //zona=zona_master;
+	bufMaster=0;
+  }
+
+
+void main(void)
+{
+  /* Write your local variable definition here */
+	
+
+  /*** Processor Expert internal initialization. DON'T REMOVE THIS CODE!!! ***/
+  PE_low_level_init();
+  /*** End of Processor Expert internal initialization.                    ***/
+
+  /* Write your code here */
+  
+  /* For example: for(;;) { } */
+  for(;;){
+	if(f){
+		recibir_Serial();
+		if(blockserial[0]&0xF0==0x80 && blockserial[1]<=0x6F && blockserial[2]<=0x36 && blockserial[3] <=0x36){	
+			zona=zona_master;
+			z_master=(block[1]&0x70)>>4;
+			z1= block[3]&0x7;
+			z2=(block[3]&0x38)>>3;
+			z3=(block[2]&0x7);
+			z4=(block[3]&0x380>>3);
+			mensaje=((block[0]&0xF)<<4)|(block[1]&0xF);
+			zona=zona_master;
+			mover_zona();
+			if (zona_p==zona){
+				enviar_infrarrojo();
+				oscilar();
+			};
+		}
+		else if(blockserial[0]==0x80 && blockserial[1]==0 && blockserial[2]==0 && blockserial[3]==0){
+			recibir_Infrarrojo();
+			if(blockinfrarrojo[0]>=0x80 && blockinfrarrojo[1]<=0xF && blockinfrarrojo[2]==0 && blockinfrarrojo[3]==0){
+				z1=0;
+				z2=0;
+				z3=0;
+				z4=0;
+				m=((blockinfrarrojo[0]&0xF)<<4)|(blockinfrarrojo[1]&0xF);
+				enviar_serial();
+			}
+		}
+			
+			
+		else if(blockserial[0]==0x90 && blockserial[1]==0 && blockserial[2]==0 && blockserial[3]==0){
+			recibir_Infrarrojo();
+			if(blockinfrarrojo[0]>=0x80 && blockinfrarrojo[1]<=0xF && blockinfrarrojo[2]<=0x36 && (blockinfrarrojo[3]&0x7==0)){
+				zona=z1;
+				mover_zona;
+				if(zona_p==zona){
+					z1=0;
+					enviar_serial(mensaje,z1,z2,z3,z4);
+					enviar_infrarrojo(mensaje,z1,z2,z3,z4);
+				}	
+			}
+		}
+		else if(blockserial[0]==0xA0 && blockserial[1]==0 && blockserial[2]==0 && blockserial[3]==0){
+			recibir_Infrarrojo();
+			if(blockinfrarrojo[0]>=0x80 && blockinfrarrojo[1]<=0xF && blockinfrarrojo[2]<=0x36 && (blockinfrarrojo[3]==0)){
+				zona=z2;
+				mover_zona;
+				if(zona_p==zona){
+					z2=0;
+					enviar_serial(mensaje,z1,z2,z3,z4);
+					enviar_infrarrojo(mensaje,z1,z2,z3,z4);
+				}	
+			}
+		}
+		else if(blockserial[0]==0xB0 && blockserial[1]==0 && blockserial[2]==0 && blockserial[3]==0){
+			recibir_Infrarrojo();
+			if(blockinfrarrojo[0]>=0x80 && blockinfrarrojo[1]<=0xF && (blockinfrarrojo[2]&0x7)==0 && (blockinfrarrojo[3]==0)){
+				zona=z3;
+				mover_zona;
+				if(zona_p==zona){
+					z3=0;
+					enviar_serial(mensaje,z1,z2,z3,z4);
+					enviar_infrarrojo(mensaje,z1,z2,z3,z4);
+				}	
+			}
+		}
+		else if(blockserial[0]==0xC0 && blockserial[1]==0 && blockserial[2]==0 && blockserial[3]==0){
+			recibir_Infrarrojo();
+			if(blockinfrarrojo[0]>=0x80 && blockinfrarrojo[1]<=0xF && blockinfrarrojo[2]==0 && blockinfrarrojo[3]==0){
+				zona=z4;
+				mover_zona;
+				if(zona_p==zona){
+					z4=0;
+					enviar_serial(mensaje,z1,z2,z3,z4);
+					enviar_infrarrojo(mensaje,z1,z2,z3,z4);
+				}	
+			}
+		}	
+
+		/*mover_zona();
+		if(zona_p==zona){
+			oscilar();
+			enviar_infrarrojo(mensaje,z1,z2,z3,z4);
+			enviar_serial(mensaje,z1,z2,z3,z4);
+		}*/
+		f=0;
+		
+	}
+}
+  /*** Don't write any code pass this line, or it will be deleted during code generation. ***/
+  /*** RTOS startup code. Macro PEX_RTOS_START is defined by the RTOS component. DON'T MODIFY THIS CODE!!! ***/
+  #ifdef PEX_RTOS_START
+    PEX_RTOS_START();                  /* Startup of the selected RTOS. Macro is defined by the RTOS component. */
+  #endif
+  /*** End of RTOS startup code.  ***/
+  /*** Processor Expert end of main routine. DON'T MODIFY THIS CODE!!! ***/
+  for(;;){}
+  /*** Processor Expert end of main routine. DON'T WRITE CODE BELOW!!! ***/
+} /*** End of main routine. DO NOT MODIFY THIS TEXT!!! ***/
+
+/* END main */
+/*!
+** @}
+*/
+/*
+** ###################################################################
+**
+**     This file was created by Processor Expert 10.3 [05.09]
+**     for the Freescale HCS08 series of microcontrollers.
+**
+** ###################################################################
+*/

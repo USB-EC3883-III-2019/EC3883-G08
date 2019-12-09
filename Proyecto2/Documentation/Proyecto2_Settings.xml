@@ -1088,8 +1088,8 @@ rising or falling edge
       </group>
     </Properties>
     <Methods>
-      <Enable v="don&amp;apos;t generate code" />
-      <Disable v="don&amp;apos;t generate code" />
+      <Enable v="generate code" />
+      <Disable v="generate code" />
       <EnableEvent v="don&amp;apos;t generate code" />
       <DisableEvent v="don&amp;apos;t generate code" />
       <SetRatio8 v="don&amp;apos;t generate code" />
@@ -1195,7 +1195,7 @@ rising or falling edge
         <Baud_rate v="3500 baud" />
         <Break_signal v="Disabled" />
         <Wakeup_condition v="Idle line wakeup" />
-        <Transmitter_output v="Not inverted" />
+        <Transmitter_output v="Inverted" />
         <Receiver_input v="Not inverted" />
         <Stop_in_wait_mode v="no" />
         <Idle_line_mode v="starts after start bit" />

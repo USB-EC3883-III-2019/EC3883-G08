@@ -6,7 +6,7 @@
 **     Component   : AsynchroSerial
 **     Version     : Component 02.611, Driver 01.33, CPU db: 3.00.067
 **     Compiler    : CodeWarrior HCS08 C Compiler
-**     Date/Time   : 2019-12-05, 00:09, # CodeGen: 1
+**     Date/Time   : 2019-12-09, 12:50, # CodeGen: 10
 **     Abstract    :
 **         This component "AsynchroSerial" implements an asynchronous serial
 **         communication. The component supports different settings of
@@ -562,8 +562,8 @@ void AS2_Init(void)
   OutIndxW = 0x00U;                    /* Reset write index to the transmit buffer */
   /* SCI2C1: LOOPS=0,SCISWAI=0,RSRC=0,M=0,WAKE=0,ILT=0,PE=0,PT=0 */
   setReg8(SCI2C1, 0x00U);              /* Configure the SCI */ 
-  /* SCI2C3: R8=0,T8=0,TXDIR=0,TXINV=0,ORIE=0,NEIE=0,FEIE=0,PEIE=0 */
-  setReg8(SCI2C3, 0x00U);              /* Disable error interrupts */ 
+  /* SCI2C3: R8=0,T8=0,TXDIR=0,TXINV=1,ORIE=0,NEIE=0,FEIE=0,PEIE=0 */
+  setReg8(SCI2C3, 0x10U);              /* Disable error interrupts */ 
   /* SCI2C2: TIE=0,TCIE=0,RIE=0,ILIE=0,TE=0,RE=0,RWU=0,SBK=0 */
   setReg8(SCI2C2, 0x00U);              /* Disable all interrupts */ 
   /* SCI2S2: LBKDIF=0,RXEDGIF=0,??=0,RXINV=0,RWUID=0,BRK13=0,LBKDE=0,RAF=0 */

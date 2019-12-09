@@ -117,8 +117,9 @@ void oscilar(){//Funcion que al alcanzar la zona deseada oscila dentro de ella p
 }
 
 void enviar_infrarrojo(/*char mensaje,char z1,char z2, char z3, char z4*/) {
-	
+	//PWM1_Enable();
 	unsigned int ptr;
+	
 	tramainfrarrojo[0]=(mensaje>>4)|0x80;
 	tramainfrarrojo[1]=(mensaje&0xF);
 	tramainfrarrojo[2]=((z4<<3)|z3);
@@ -150,15 +151,16 @@ void recibir_infrarrojo(){
 	AS2_RecvBlock(blockinfrarrojo,4,&ptr);
 	//} while (CodError!=ERR_OK);
 	
-	if((blockinfrarrojo[0]>=0x80) && (blockinfrarrojo[0]<=0x8F)){
-		mensaje= ( blockinfrarrojo[0]<<4 ) | ( blockinfrarrojo[1] & 0xF ) ; 	// 8 BITS DE MENSAJE
+	if((blockinfrarrojo[0]>=0x80) && (blockinfrarrojo[0]<=0x8F) && (blockinfrarrojo[1]>=0xF) && (blockinfrarrojo[2]<=0x36) && (blockinfrarrojo[3]<=0x36)){
+		mensaje= ((blockinfrarrojo[0]&0xF)<<4 ) | ( blockinfrarrojo[1] & 0xF ) ; 	// 8 BITS DE MENSAJE
 		z1= ( blockinfrarrojo[3] & 0x7 );					// zona 1
 		z2= ( blockinfrarrojo[3] & 0x38)>>3;				// zona 2
 		z3= ( blockinfrarrojo[2] & 0x7);					// zona 3
 		z4= ( blockinfrarrojo[2] & 0x38)>>3;				// zona 4
 	}
-	//AS2_ClearRxBuf();
-	
+	else{
+		AS2_ClearRxBuf();
+	}
  }
 
 void recibir_serial(){  
@@ -222,7 +224,7 @@ void main(void)
 			//if(bufSerial){
 				recibir_serial();
 				if(master){	
-					//zona_master=(blockserial[1]&0x70)>>4;
+					zona_master=(blockserial[1]&0x70)>>4;
 					z1= blockserial[3]&0x7;
 					z2=(blockserial[3]&0x38)>>3;
 					z3=(blockserial[2]&0x7);
@@ -233,40 +235,46 @@ void main(void)
 					
 					if (zona_p==zona){
 						enviar_infrarrojo();
-					//oscilar();
+						//enviar_serial();
+						//PWM1_Disable();
+						oscilar();
 					}
 					master=0;
+					master_recibe=1;
 				}
 				else if(master_recibe){
-					if(bufInfrarrojo){
+					//if(bufInfrarrojo){
 						recibir_infrarrojo();
-						if(blockinfrarrojo[0]>=0x80 && blockinfrarrojo[1]<=0xF && blockinfrarrojo[2]==0 && blockinfrarrojo[3]==0){
+						if(blockinfrarrojo[0]>=0x80 /*&& blockinfrarrojo[1]<=0xF && blockinfrarrojo[2]==0 && blockinfrarrojo[3]==0*/){
 							z1=0;
 							z2=0;
 							z3=0;
 							z4=0;
 							mensaje=((blockinfrarrojo[0]&0xF)<<4)|(blockinfrarrojo[1]&0xF);
 							enviar_serial();
-						}
+						//}
 					}
 					master_recibe=0;
+					master=1;
 				}
 					
 				else if(esclavo1){
 					//if(bufInfrarrojo){
 						recibir_infrarrojo();
 						//if(blockinfrarrojo[0]>=0x80 && blockinfrarrojo[1]<=0xF && blockinfrarrojo[2]<=0x36 && (blockinfrarrojo[3]&0x7==0)){
-							z1= blockserial[3]&0x7;
-							z2=(blockserial[3]&0x38)>>3;
-							z3=(blockserial[2]&0x7);
-							z4=(blockserial[3]&0x380>>3);
-							mensaje=((blockserial[0]&0xF)<<4)|(blockserial[1]&0xF);
+							z1= blockinfrarrojo[3]&0x7;
+							z2=(blockinfrarrojo[3]&0x38)>>3;
+							z3=(blockinfrarrojo[2]&0x7);
+							z4=(blockinfrarrojo[3]&0x380>>3);
+							mensaje=((blockinfrarrojo[0]&0xF)<<4)|(blockinfrarrojo[1]&0xF);
 							zona=z1;
 							mover_zona();
 							if (zona_p==zona){
 								z1=0;
 								enviar_infrarrojo();
+								//PWM1_Disable();
 								enviar_serial();
+								
 											//oscilar();
 							}
 														
@@ -278,17 +286,19 @@ void main(void)
 					//if(bufInfrarrojo){
 						recibir_infrarrojo();
 						if(blockinfrarrojo[0]>=0x80 && blockinfrarrojo[1]<=0xF && blockinfrarrojo[2]<=0x36 && (blockinfrarrojo[3]==0)){
-							z1= blockserial[3]&0x7;
-							z2=(blockserial[3]&0x38)>>3;
-							z3=(blockserial[2]&0x7);
-							z4=(blockserial[3]&0x380>>3);
-							mensaje=((blockserial[0]&0xF)<<4)|(blockserial[1]&0xF);
+							z1= blockinfrarrojo[3]&0x7;
+							z2=(blockinfrarrojo[3]&0x38)>>3;
+							z3=(blockinfrarrojo[2]&0x7);
+							z4=(blockinfrarrojo[3]&0x380>>3);
+							mensaje=((blockinfrarrojo[0]&0xF)<<4)|(blockinfrarrojo[1]&0xF);
 							zona=z2;
 							mover_zona();
 							if (zona_p==zona){
 								z2=0;
 								enviar_infrarrojo();
+								//PWM1_Disable();
 								enviar_serial();
+								
 																		//oscilar();
 							}
 						}
@@ -299,17 +309,19 @@ void main(void)
 					//if(bufInfrarrojo){
 						recibir_infrarrojo();
 						if(blockinfrarrojo[0]>=0x80 && blockinfrarrojo[1]<=0xF && (blockinfrarrojo[2]&0x7)==0 && (blockinfrarrojo[3]==0)){
-							z1= blockserial[3]&0x7;
-							z2=(blockserial[3]&0x38)>>3;
-							z3=(blockserial[2]&0x7);
-							z4=(blockserial[3]&0x380>>3);
-							mensaje=((blockserial[0]&0xF)<<4)|(blockserial[1]&0xF);
+							z1= blockinfrarrojo[3]&0x7;
+							z2=(blockinfrarrojo[3]&0x38)>>3;
+							z3=(blockinfrarrojo[2]&0x7);
+							z4=(blockinfrarrojo[3]&0x380>>3);
+							mensaje=((blockinfrarrojo[0]&0xF)<<4)|(blockinfrarrojo[1]&0xF);
 							zona=z3;
 							mover_zona();
 							if (zona_p==zona){
 								z3=0;
 								enviar_infrarrojo();
+								//PWM1_Disable();
 								enviar_serial();
+								
 																		//oscilar();
 							}
 						}
@@ -320,17 +332,19 @@ void main(void)
 					//if(bufInfrarrojo){
 						recibir_infrarrojo();
 						if(blockinfrarrojo[0]>=0x80 && blockinfrarrojo[1]<=0xF && blockinfrarrojo[2]==0 && blockinfrarrojo[3]==0){
-							z1= blockserial[3]&0x7;
-							z2=(blockserial[3]&0x38)>>3;
-							z3=(blockserial[2]&0x7);
-							z4=(blockserial[3]&0x380>>3);
-							mensaje=((blockserial[0]&0xF)<<4)|(blockserial[1]&0xF);
+							z1= blockinfrarrojo[3]&0x7;
+							z2=(blockinfrarrojo[3]&0x38)>>3;
+							z3=(blockinfrarrojo[2]&0x7);
+							z4=(blockinfrarrojo[3]&0x380>>3);
+							mensaje=((blockinfrarrojo[0]&0xF)<<4)|(blockinfrarrojo[1]&0xF);
 							zona=z4;
 							mover_zona();
 							if (zona_p==zona){
 								z4=0;
 								enviar_infrarrojo();
+								//PWM1_Disable();
 								enviar_serial();
+								
 																	//oscilar();
 							}
 						}

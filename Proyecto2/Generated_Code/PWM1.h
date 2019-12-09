@@ -6,7 +6,7 @@
 **     Component   : PWM
 **     Version     : Component 02.240, Driver 01.28, CPU db: 3.00.067
 **     Compiler    : CodeWarrior HCS08 C Compiler
-**     Date/Time   : 2019-12-05, 00:09, # CodeGen: 1
+**     Date/Time   : 2019-12-09, 12:40, # CodeGen: 9
 **     Abstract    :
 **         This component implements a pulse-width modulation generator
 **         that generates signal with variable duty and fixed cycle. 
@@ -47,6 +47,8 @@
 **             seconds (real)          : 0.000027706749 0.00001378645
 **
 **     Contents    :
+**         Enable     - byte PWM1_Enable(void);
+**         Disable    - byte PWM1_Disable(void);
 **         SetRatio16 - byte PWM1_SetRatio16(word Ratio);
 **         SetDutyUS  - byte PWM1_SetDutyUS(word Time);
 **         SetDutyMS  - byte PWM1_SetDutyMS(word Time);
@@ -111,6 +113,40 @@
 #define PWM1_PERIOD_VALUE_HIGH         0x019DU /* Period value in ticks of the timer in high speed mode */
 
 #pragma CODE_SEG PWM1_CODE
+
+byte PWM1_Enable(void);
+/*
+** ===================================================================
+**     Method      :  PWM1_Enable (component PWM)
+**     Description :
+**         This method enables the component - it starts the signal
+**         generation. Events may be generated (<DisableEvent>
+**         /<EnableEvent>).
+**     Parameters  : None
+**     Returns     :
+**         ---             - Error code, possible codes:
+**                           ERR_OK - OK
+**                           ERR_SPEED - This device does not work in
+**                           the active speed mode
+** ===================================================================
+*/
+
+byte PWM1_Disable(void);
+/*
+** ===================================================================
+**     Method      :  PWM1_Disable (component PWM)
+**     Description :
+**         This method disables the component - it stops the signal
+**         generation and events calling. When the timer is disabled,
+**         it is possible to call <ClrValue> and <SetValue> methods.
+**     Parameters  : None
+**     Returns     :
+**         ---             - Error code, possible codes:
+**                           ERR_OK - OK
+**                           ERR_SPEED - This device does not work in
+**                           the active speed mode
+** ===================================================================
+*/
 
 byte PWM1_SetRatio16(word Ratio);
 /*

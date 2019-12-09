@@ -6,7 +6,7 @@
 **     Component   : PWM
 **     Version     : Component 02.240, Driver 01.28, CPU db: 3.00.067
 **     Compiler    : CodeWarrior HCS08 C Compiler
-**     Date/Time   : 2019-12-05, 00:09, # CodeGen: 1
+**     Date/Time   : 2019-12-09, 12:40, # CodeGen: 9
 **     Abstract    :
 **         This component implements a pulse-width modulation generator
 **         that generates signal with variable duty and fixed cycle. 
@@ -47,6 +47,8 @@
 **             seconds (real)          : 0.000027706749 0.00001378645
 **
 **     Contents    :
+**         Enable     - byte PWM1_Enable(void);
+**         Disable    - byte PWM1_Disable(void);
 **         SetRatio16 - byte PWM1_SetRatio16(word Ratio);
 **         SetDutyUS  - byte PWM1_SetDutyUS(word Time);
 **         SetDutyMS  - byte PWM1_SetDutyMS(word Time);
@@ -170,6 +172,52 @@ static void SetRatio(void)
     }
     TPM1C2V = Result;
   }
+}
+
+/*
+** ===================================================================
+**     Method      :  PWM1_Enable (component PWM)
+**     Description :
+**         This method enables the component - it starts the signal
+**         generation. Events may be generated (<DisableEvent>
+**         /<EnableEvent>).
+**     Parameters  : None
+**     Returns     :
+**         ---             - Error code, possible codes:
+**                           ERR_OK - OK
+**                           ERR_SPEED - This device does not work in
+**                           the active speed mode
+** ===================================================================
+*/
+byte PWM1_Enable(void)
+{
+  /* TPM1SC: TOF=0,TOIE=0,CPWMS=0,CLKSB=0,CLKSA=1,PS2=0,PS1=0,PS0=0 */
+  setReg8(TPM1SC, 0x08U);              /* Run the counter (set CLKSB:CLKSA) */ 
+  return ERR_OK;                       /* OK */
+}
+
+/*
+** ===================================================================
+**     Method      :  PWM1_Disable (component PWM)
+**     Description :
+**         This method disables the component - it stops the signal
+**         generation and events calling. When the timer is disabled,
+**         it is possible to call <ClrValue> and <SetValue> methods.
+**     Parameters  : None
+**     Returns     :
+**         ---             - Error code, possible codes:
+**                           ERR_OK - OK
+**                           ERR_SPEED - This device does not work in
+**                           the active speed mode
+** ===================================================================
+*/
+byte PWM1_Disable(void)
+{
+  /* TPM1SC: TOF=0,TOIE=0,CPWMS=0,CLKSB=0,CLKSA=0,PS2=0,PS1=0,PS0=0 */
+  setReg8(TPM1SC, 0x00U);              /* Stop counter (CLKSB:CLKSA = 00) */ 
+  /* TPM1CNTH: BIT15=0,BIT14=0,BIT13=0,BIT12=0,BIT11=0,BIT10=0,BIT9=0,BIT8=0 */
+  setReg8(TPM1CNTH, 0x00U);            /* Reset HW Counter */ 
+  return ERR_OK;                       /* OK */
 }
 
 /*
